@@ -1,0 +1,143 @@
+#include <Servo.h>
+  Servo S1;
+  Servo S2;
+ 
+  // ADC value
+  int sensorValue;
+  // Actual temperature in the output [=] °C (Tolerance = +-1.5%)
+  float T;
+  // Temperature reference
+  float Tref;
+  // Membership function1 reference value
+  float T1;
+  // Membership function2 reference value
+  float T2;
+  // Membership function3 reference value
+  float T3;
+  // Error = Temperature reference - Actual temperature
+  float Error;
+  // Membership function1 Error value
+  float E1;
+  // Membership function2 Error value
+  float E2;
+  // Membership function3 Error value
+  float E3;
+  
+  // Membership Outputs for Fria
+  float salidaFria;
+  float moderadaFria;
+  float muchaFria;
+  
+  // Membership Outputs for Caliente
+  float salidaCaliente;
+  float moderadaCaliente;
+  float muchaCaliente;
+  
+  void setup() {
+  Serial.begin(9600);
+  S1.attach(5);
+  S2.attach(4);
+}
+
+void loop() {
+      // Read the voltage reference
+  Tref = analogRead(A3);
+     // Gives a Temperature reference   
+  Tref = map(Tref, 0, 1023, 20, 80);
+      // Read the output from the 33K Termistor in the ADC2 (ADC ports -> ADC0 to ADC5)
+  T = analogRead(A2);
+  T = map (T, 410, 1023, 20, 80);
+  Error = Tref - T;
+    //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    //XXXXXXXXXXXXXXXXXXXXXX Error Membership Function XXXXXXXXXXXXXXXXXXXXXXX
+    //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  
+      //Membership function1 Error
+  if (Error <= -15) {E1 = 1;}
+  else if (Error > -15 && Error < 0) {E1 = -Error / 15;}
+  else {E1 = 0;}
+      //Membership function2 Error
+  if (Error <= -15) {E2 = 0;}
+  else if (Error > -15 && Error <= 0) {E2 = 1 + Error / 15;}
+  else if (Error > 0 && Error < 15) {E2 = 1 - Error / 15;}
+  else {E2 = 0;}
+      //Membership function3 Error
+  if (Error <= 0) {E3 = 0;}
+  else if (Error > 0 && Error < 15) {E3 = Error / 15;}
+  else {E3 = 1;}
+  
+  //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  //XXXXXXXXXXXXXXXXXXX Temperature Membership Function XXXXXXXXXXXXXXXXXXXX
+  //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 
+   
+      //Membership function1 Temperature Reference (Agua fria)
+  if (Tref <= 20) {T1 = 1;}
+  else if (Tref > 20 && Tref < 50) {T1 = (50 - Tref )/ 30;}
+  else {T1 = 0;}
+      //Membership function2 Temperature Reference (Agua tibia)
+  if (Tref <= 20) {T2 = 0;}  
+  else if (Tref > 20 && Tref <= 50) {T2 = (Tref - 20) / 30;}
+  else if (Tref > 50 && Tref < 80) {T2 = (80 - Tref )/ 30;}
+  else {T2 = 0;}
+      //Membership function2 Temperature Reference (Agua caliente)
+  if (Tref <= 50) {T3 = 0;}
+  else if (Tref > 50 && Tref < 80) {T3 = (Tref - 50) / 30;}
+  else {T3 = 1;}
+
+  //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX Rules XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  //XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 
+    // Rules for muchafria
+  if ((T1 * E1) >= (T1 * E2) && (T1 * E1) >= (T2 * E1) && (T1 * E1) >= (T3 * E1)) {muchaFria = T1 * E1;}
+  else if ((T1 * E2) > (T1 * E1) && (T1 * E2) > (T2 * E1) && (T1 * E2) > (T3 * E1)) {muchaFria = T1 * E2;}
+  else if ((T2 * E1) > (T1 * E1) && (T2 * E1) > (T1 * E2) && (T2 * E1) > (T3 * E1)) {muchaFria = T2 * E1;}
+  else {muchaFria = T3 * E1;}
+    // Rules for moderadafria
+  if ((T1 * E3) >= (T2 * E2) && (T1 * E3) >= (T2 * E3) && (T1 * E3) >= (T3 * E2)) {moderadaFria = T1 * E3;}
+  else if ((T2 * E2) > (T1 * E3) && (T2 * E2) > (T2 * E3) && (T2 * E2) > (T3 * E2)) {moderadaFria = T2 * E2;}
+  else if ((T2 * E3) > (T2 * E2) && (T2 * E3) > (T1 * E3) && (T2 * E3) > (T3 * E2)) {moderadaFria = T2 * E3;}
+  else {moderadaFria = T3 * E2;}
+      // Rules for muchaCaliente
+  if ((T1 * E3) >= (T2 * E3) && (T1 * E3) >= (T3 * E2) && (T1 * E3) >= (T3 * E3)) {muchaCaliente = T1 * E3;}
+  else if ((T2 * E3) > (T1 * E3) && (T2 * E3) > (T3 * E2) && (T2 * E3) > (T3 * E3)) {muchaCaliente = T2 * E3;}
+  else if ((T3 * E2) > (T1 * E3) && (T3 * E2) > (T2 * E3) && (T3 * E2) > (T3 * E3)) {muchaCaliente = T3 * E2;}
+  else {muchaFria = T3 * E3;}
+    // Rules for moderadaCaliente
+  if ((T1 * E2) >= (T2 * E1) && (T1 * E2) >= (T2 * E2) && (T1 * E2) >= (T3 * E1)) {moderadaCaliente = T1 * E2;}
+  else if ((T2 * E1) > (T1 * E2) && (T2 * E1) > (T2 * E2) && (T2 * E1) > (T3 * E1)) {moderadaCaliente = T2 * E1;}
+  else if ((T2 * E2) > (T1 * E2) && (T2 * E2) > (T2 * E1) && (T2 * E2) > (T3 * E1)) {moderadaCaliente = T2 * E2;}
+  else {moderadaFria = T3 * E1;}
+
+    //Fria output
+  salidaFria = (10 * muchaFria + 5 * moderadaFria) / (muchaFria + moderadaFria);
+    //Caliente output
+  salidaCaliente = (10 * muchaCaliente + 5 * moderadaCaliente) / (muchaCaliente + moderadaCaliente);
+  
+  if ((muchaFria + moderadaFria) <= 0) 
+  {
+    salidaFria = 0;
+  }
+  if ((muchaCaliente + moderadaCaliente) <= 0) 
+  {
+    salidaCaliente = 0;
+  }
+  // Print out the Temperature value
+  Serial.print("Temperatura real = ");
+  Serial.println(T);
+  // Print out the Error value
+  Serial.print("Temperatura de referencia = ");
+  Serial.println(Tref);
+  // Print out the Error value
+  Serial.print("Error =");
+  Serial.println(Error);
+  // Print out the Fria output
+  Serial.print("Agua Fria = ");
+  Serial.println(salidaFria);
+  // Print out the Caliente output
+  Serial.print("Agua Caliente = ");
+  Serial.println(salidaCaliente);
+  salidaCaliente = 90-salidaCaliente;
+  S1.write(salidaCaliente);//5
+  S2.write(salidaFria);//4
+  
+  delay(70);
+}
